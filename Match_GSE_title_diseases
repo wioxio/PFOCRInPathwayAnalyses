@@ -1,0 +1,119 @@
+
+# Check for dependencies and install if missing
+packages <- c("rhdf5","pkgconfig")
+if (length(setdiff(packages, rownames(installed.packages()))) > 0) {
+  BiocManager::install("rhdf5")
+}
+#make ~/.R/Makevars  and add the following (remove # in the beginning of each line)
+# LDFLAGS= -L/usr/local/clang4/lib
+# FLIBS=-L/usr/local/gfortran/lib/gcc/x86_64-apple-darwin16/6.3.0 -L/usr/local/gfortran/lib -lgfortran -lquadmath -lm
+# CC=/usr/local/clang4/bin/clang
+# CXX=/usr/local/gfortran/bin/g++
+#   CXX1X=/usr/local/gfortran/bin/g++
+#   CXX98=/usr/local/gfortran/bin/g++
+#   CXX11=/usr/local/gfortran/bin/g++
+#   CXX14=/usr/local/gfortran/bin/g++
+#   CXX17=/usr/local/gfortran/bin/g++
+#   
+#   LLVM_LOC = /usr/local/opt/llvm
+# CC=/usr/local/gfortran/bin/gcc -fopenmp
+# CXX=/usr/local/gfortran/bin/g++ -fopenmp
+# # -O3 should be faster than -O2 (default) level optimisation ..
+# CFLAGS=-g -O3 -Wall -pedantic -std=gnu99 -mtune=native -pipe
+# CXXFLAGS=-g -O3 -Wall -pedantic -std=c++11 -mtune=native -pipe
+# LDFLAGS=-L/usr/local/opt/gettext/lib -L$(LLVM_LOC)/lib -Wl,-rpath,$(LLVM_LOC)/lib
+# CPPFLAGS=-I/usr/local/opt/gettext/include -I$(LLVM_LOC)/include -I/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include
+
+#add this path to your mac:  /usr/local/gfortran/bin
+#If you have data.table error: ‘datatable.so’ not found
+#https://github.com/Rdatatable/data.table/wiki/Installation#openmp-enabled-compiler-for-mac
+
+# sample size
+# platform: not array
+# year
+# organism
+
+
+if (!requireNamespace("BiocManager", quietly = TRUE))
+  install.packages("BiocManager")
+
+if (!requireNamespace("GEOquery", quietly = TRUE))
+  install.packages("GEOquery")
+
+library("rhdf5")
+library("tools")
+library("GEOquery")
+
+setwd("~/Dropbox (Gladstone)/Pathway-Project/human_matrix_download.h5")
+destination_file = "human_matrix_download.h5"
+
+data <- getGEO("GSE67492")
+data$GSE67492_series_matrix.txt.gz@experimentData@title
+data$GSE67492_series_matrix.txt.gz@experimentData@abstract
+
+gse = h5read(destination_file, "meta/Sample_series_id")
+head(gse)
+length(gse)
+238522
+length(unique(gse))
+7909
+
+unique_gse=unique(gse)
+
+
+
+###gse issue example: "GSE27452Xx-xXGSE32303"
+##removing
+library(stringr)
+str_count(unique_gse[3],"GSE")
+GSE_counts=apply(unique_gse,1,function(x) str_count(x,"GSE"))
+max(GSE_counts)
+3
+length(which(GSE_counts>1))
+1607
+unique_gse=unique_gse[-which(GSE_counts>1)]
+
+dieases=c("Renal cell carcinoma","Alzheimer’s disease","Alzheimer","Thyroid cancer","Dilated cardiomyopathy",
+          "Colorectal cancer","Prostate cancer","Huntington’s disease","Huntington","Acute Myeloid Leukemia",
+          "Pancreatic cancer","Non-small cell lung cancer","Glioma","Parkinson’s disease","Parkinson",
+          "Type II diabetes mellitus","Type 2 diabetes mellitus","Chronic Myeloid Leukemia","Endometrial cancer")
+
+match_gse_disease<-function(gse_id){
+  print(gse_id)
+  
+ 
+  
+   tryCatch({
+    
+    data <- getGEO(gse_id)
+    
+  }, error = function(err) {
+    
+     print(error)
+
+    return(0)
+    
+  }) # END tryCatch
+  
+  
+  title=data[[1]]@experimentData@title
+  abstract=data[[1]]@experimentData@abstract
+  
+  matched_disease_title=apply(as.matrix(dieases),1,function(x) grep(x,title,ignore.case=TRUE) )
+  matched_disease_abstract=apply(as.matrix(dieases),1,function(x) grep(x,abstract,ignore.case=TRUE) )
+  
+  if(length(matched_disease_title)>0 | length(matched_disease_abstract)>0){
+    if(length(matched_disease_title)>0){
+      which_disease=which(matched_disease_title>0)
+    }else{
+      which_disease=which(matched_disease_abstract>0)
+    }
+    return(which_disease) 
+  }else{
+    return(0)
+  }
+  if(which_disease>0){print(disease[which_disease])}
+  
+}
+
+matched_diseases=apply(unique_gse,1,match_gse_disease)
